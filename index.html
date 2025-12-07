@@ -1,197 +1,110 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Access Toggle</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Status</title>
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    background: #f5f5f5;
-  }
-  .box {
-    background: white;
-    padding: 25px 30px;
-    border-radius: 14px;
-    box-shadow: 0 0 20px rgba(0,0,0,0.08);
-    text-align: center;
-  }
-  button {
-    padding: 10px 18px;
-    border-radius: 8px;
-    border: none;
-    background: black;
-    color: white;
-    cursor: pointer;
-    margin-top: 12px;
-  }
-  input[type="checkbox"] {
-    transform: scale(1.3);
-  }
+    body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:#f5f5f5; margin:0; height:100vh; display:flex; justify-content:center; align-items:center; color:#222; }
+    .container { text-align:center; padding:28px; animation: fadeIn .35s ease; max-width:880px; }
+    h1 { font-weight:900; margin:0; }
+    .big { font-size:6rem; }
+    .sub { margin-top:8px; font-size:1.05rem; opacity:.75; }
+    .muted { opacity:.6; margin-top:10px; }
+    @keyframes fadeIn { from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+    .err { color:#b00; }
+    .small { font-size:.9rem; opacity:.6; margin-top:12px; }
+    button.linklike { background:none; border:none; color:inherit; text-decoration:underline; cursor:pointer; padding:0; font:inherit; }
 </style>
 </head>
 <body>
-
-<div class="box">
-  <h2>Access Controller</h2>
-  <p>Toggle between yes / no<br>
-    <small><code>access.csv</code> will store exactly: <b>yes</b> or <b>no</b></small>
-  </p>
-  
-  <label>
-    <input type="checkbox" id="toggle">
-    access.csv: <span id="yesno-label">no</span>
-  </label>
-
-  <br>
-  <button onclick="saveValue()">Save</button>
-
-  <p id="status"></p>
-</div>
+<div id="app"></div>
 
 <script>
-  // ============================
-  // SAME ENCRYPTION STYLE AS YOUR OPENFILE CODE
-  // ============================
-  // This is your encrypted token. If you change it there, change it here too.
-  const encryptedToken = 'amx3a3hlYnNkd2I0NEVFUjlQVFQzPFt3c3NUREhWU2RKYlJJUFRrVWk4WFV4SW1VV3d1a2tdUHhQR29maWpnTlZ1dGxxe1o7dWZ9WE5SW0c3Vk1GUmlPc3pZSWU4';
-  const tokenShift = 3;
+(function () {
+    const RAW_URL = "https://raw.githubusercontent.com/rutujdhodapkar/Storage/main/access.csv";
 
-  function simpleDecrypt(encryptedBase64, shift) {
-    try {
-      const shifted = atob(encryptedBase64);
-      return Array.from(shifted)
-        .map(c => String.fromCharCode(c.charCodeAt(0) - shift))
-        .join('');
-    } catch (e) {
-      console.error('Failed to decrypt token', e);
-      return '';
+    // cache-bust + force fresh
+    const url = RAW_URL + (RAW_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
+
+    // Helper UI mounts
+    function mount(html) { document.getElementById('app').innerHTML = html; }
+
+    function show404() {
+        mount(`
+            <div class="container">
+                <h1 class="big">404</h1>
+                <p class="sub">The resource requested could not <button class="linklike" style="text-decoration:none; cursor:text;" onclick="redirect()">be</button> found on this server.</p>
+            </div>
+        `);
     }
-  }
 
-  function getToken() {
-    if (!window.__decryptedGithubToken) {
-      window.__decryptedGithubToken = simpleDecrypt(encryptedToken, tokenShift);
+    function showDenied() {
+        mount(`
+            <div class="container">
+                <h1 style="font-size:2.4rem;">This is a private website.</h1>
+                <h1 style="font-size:2.4rem;">Access denied.</h1>
+                <p class="muted">Contact Rutuj Dhodapkar to get access.</p>
+            </div>
+        `);
     }
-    return window.__decryptedGithubToken || '';
-  }
 
-  // ============================
-  // REPO CONFIG
-  // ============================
-  const USER = 'rutujdhodapkar';
-  const REPO = 'Storage';
-  const FILE = 'access.csv';
-  const BRANCH = 'main';
-
-  // UI elements
-  const toggle = document.getElementById('toggle');
-  const label = document.getElementById('yesno-label');
-  const statusEl = document.getElementById('status');
-
-  function updateLabel() {
-    label.textContent = toggle.checked ? 'yes' : 'no';
-  }
-
-  toggle.addEventListener('change', updateLabel);
-
-  // ============================
-  // LOAD CURRENT VALUE FROM RAW
-  // ============================
-  async function loadAccessCsvValue() {
-    try {
-      const url = `https://raw.githubusercontent.com/${USER}/${REPO}/${BRANCH}/${FILE}?${Date.now()}`;
-      const resp = await fetch(url);
-
-      if (!resp.ok) {
-        // If file doesn't exist yet, default to "no"
-        toggle.checked = false;
-        updateLabel();
-        statusEl.innerText = 'access.csv not found. Defaulting to "no".';
-        return;
-      }
-
-      const text = (await resp.text()).trim().toLowerCase();
-      const value = text === 'yes' ? 'yes' : 'no';
-      toggle.checked = value === 'yes';
-      updateLabel();
-      statusEl.innerText = `Loaded: ${value}`;
-    } catch (err) {
-      console.error('Load error:', err);
-      statusEl.innerText = 'Error loading current value.';
+    function showFetchError(status, text) {
+        mount(`<div class="container">
+            <p class="err">Error fetching access.csv. Status: ${status}</p>
+            <p class="small">Console has details.</p>
+        </div>`);
+        console.error("Fetch failed:", status, text);
     }
-  }
 
-  loadAccessCsvValue();
-
-  // Helper for base64 (UTF-8 safe)
-  function toBase64(str) {
-    return btoa(unescape(encodeURIComponent(str)));
-  }
-
-  // ============================
-  // SAVE VALUE TO GITHUB (CREATE OR UPDATE)
-  // ============================
-  async function saveValue() {
-    const value = toggle.checked ? 'yes' : 'no';
-    statusEl.innerText = 'Saving...';
-
-    const metaUrl = `https://api.github.com/repos/${USER}/${REPO}/contents/${FILE}`;
-    const headers = {
-      'Authorization': `token ${getToken()}`,
-      'Content-Type': 'application/json'
+    window.redirect = function() {
+        // keep the original redirect target
+        window.location.href = "https://vgrnyiuiovnuionyioviohc8eryb.netlify.app/";
     };
 
-    try {
-      // 1) Try to get existing file metadata
-      const metaRes = await fetch(metaUrl, { headers });
+    fetch(url, { cache: "no-store", mode: "cors", redirect: "follow" })
+        .then(async res => {
+            const text = await res.text().catch(() => "");
+            console.log("FETCH STATUS:", res.status, "OK:", res.ok);
+            console.log("RAW CONTENT:", JSON.stringify(text.slice(0,200))); // truncated dump
 
-      let sha = null;
-      if (metaRes.ok) {
-        const metaData = await metaRes.json();
-        sha = metaData.sha || null;
-      } else if (metaRes.status !== 404) {
-        // If error other than "not found", show it
-        const errText = await metaRes.text();
-        statusEl.innerText = `Error reading file: ${errText}`;
-        return;
-      }
-      // If 404: sha stays null → we will create a new file
+            if (!res.ok) {
+                // sometimes GitHub returns HTML error pages; show helpful message
+                showFetchError(res.status, text);
+                return;
+            }
 
-      const bodyText = value + '\n';
-      const base64 = toBase64(bodyText);
+            // Remove BOM, normalize whitespace, lowercase
+            const cleaned = text.replace(/^\uFEFF/, "").trim().toLowerCase();
 
-      const payload = {
-        message: `Set access.csv to "${value}"`,
-        content: base64,
-        branch: BRANCH
-      };
-      if (sha) {
-        payload.sha = sha;  // only include sha if file existed
-      }
+            // Find the first standalone token 'yes' or 'no' (word boundary)
+            const match = cleaned.match(/\b(yes|no)\b/);
 
-      // 2) Create or update the file
-      const putRes = await fetch(metaUrl, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(payload)
-      });
+            if (match && match[1]) {
+                const value = match[1];
+                console.log("PARSED VALUE:", value);
+                if (value === "yes") show404();
+                else showDenied();
+            } else {
+                // no explicit yes/no found — show helpful debug so you can fix the CSV content
+                mount(`<div class="container">
+                    <p class="err">Invalid CSV value. expected "yes" or "no".</p>
+                    <p class="small">File contents (first 200 chars):</p>
+                    <pre class="small" style="max-width:640px; white-space:pre-wrap; text-align:left;">${escapeHtml(cleaned.slice(0,200))}</pre>
+                </div>`);
+                console.warn("Invalid access.csv content:", cleaned);
+            }
+        })
+        .catch(err => {
+            mount(`<div class="container"><p class="err">Network / fetch error.</p><p class="small">Open console for details.</p></div>`);
+            console.error("Fetch error:", err);
+        });
 
-      if (putRes.ok) {
-        statusEl.innerText = `Saved: ${value}`;
-      } else {
-        const errText = await putRes.text();
-        statusEl.innerText = `Error saving: ${errText}`;
-      }
-    } catch (err) {
-      console.error('Save error:', err);
-      statusEl.innerText = 'Save failed. Check console.';
+    // small helper to avoid injecting raw HTML
+    function escapeHtml(s) {
+        return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
-  }
+})();
 </script>
-
 </body>
 </html>
